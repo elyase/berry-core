@@ -16,15 +16,15 @@ name = "berry_core"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { workspace = true, features = ["anyhow", "experimental-async"] }
+pyo3 = { version = "0.23", features = ["anyhow", "experimental-async"] }
 baselib = { package = "cherry-core", path = "../core", features = ["pyo3"] }
-arrow = { workspace = true , features = ["pyarrow"] }
-anyhow = { workspace = true } 
-faster-hex = { workspace = true } 
-futures-lite = { workspace = true }
-sqd-portal-client = { workspace = true }
-tokio = { workspace = true, features = ["full"] }
+arrow = { version = "54.2.1", features = ["pyarrow"] }
+anyhow = "1"
+faster-hex = "0.10"
+futures-lite = "2"
+sqd-portal-client = "0.1"
+tokio = { version = "1", features = ["full"] }
 env_logger = "0.11"
-bs58 = { workspace = true }
+bs58 = "0.5"
 openssl = { version = "0.10", features = ["vendored"] }
 tikv-jemallocator = { version = "0.6", features = ["disable_initial_exec_tls", "unprefixed_malloc_on_supported_platforms"] }
