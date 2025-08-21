@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - 'v*.*.*'
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -36,12 +35,11 @@ jobs:
           sccache: 'true'
           working-directory: python
           manylinux: auto
-          working-directory: python
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
           name: wheels-linux-${{ matrix.platform.target }}
-          path: dist
+          path: python/dist
 
   windows:
     runs-on: ${{ matrix.platform.runner }}
@@ -73,7 +71,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wheels-windows-${{ matrix.platform.target }}
-          path: dist
+          path: python/dist
 
   macos:
     runs-on: ${{ matrix.platform.runner }}
@@ -104,7 +102,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wheels-macos-${{ matrix.platform.target }}
-          path: dist
+          path: python/dist
 
   sdist:
     runs-on: ubuntu-latest
@@ -124,12 +122,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wheels-sdist
-          path: dist
+          path: python/dist
 
   release:
     name: Release
     runs-on: ubuntu-latest
-    if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
     needs: [linux, windows, macos, sdist]
     environment: pypi
     permissions:
