@@ -7,12 +7,12 @@ use arrow::array::{
 };
 use arrow::datatypes::{DataType, Schema};
 use arrow::pyarrow::{FromPyArrow, ToPyArrow};
-use cherry_svm_decode::{InstructionSignature, LogSignature};
+use baselib::svm_decode::{InstructionSignature, LogSignature};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use tikv_jemallocator::Jemalloc;
 
-// mod ingest; // Temporarily disabled to avoid complex dependencies
+mod ingest;
 
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
@@ -63,7 +63,7 @@ fn berry_core(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(get_token_metadata_as_table, m)?)?;
     m.add_function(wrap_pyfunction!(get_pools_token0_token1, m)?)?;
     m.add_function(wrap_pyfunction!(get_pools_token0_token1_as_table, m)?)?;
-    // ingest::ingest_module(py, m)?; // Temporarily disabled to avoid complex dependencies
+    ingest::ingest_module(py, m)?;
 
     Ok(())
 }
@@ -90,7 +90,7 @@ fn cast(
         .map(|(name, dt)| (name, dt.0))
         .collect::<Vec<_>>();
 
-    let batch = cherry_cast::cast(&map, &batch, allow_cast_fail).context("cast")?;
+    let batch = baselib::cast::cast(&map, &batch, allow_cast_fail).context("cast")?;
 
     Ok(batch.to_pyarrow(py).context("map result back to pyarrow")?)
 }
@@ -107,7 +107,7 @@ fn cast_schema(
         .map(|(name, dt)| (name, dt.0))
         .collect::<Vec<_>>();
 
-    let schema = cherry_cast::cast_schema(&map, &schema).context("cast")?;
+    let schema = baselib::cast::cast_schema(&map, &schema).context("cast")?;
 
     Ok(schema
         .to_pyarrow(py)
@@ -128,7 +128,7 @@ fn cast_by_type(
         DataType::from_pyarrow_bound(from_type).context("convert from_type to pyarrow")?;
     let to_type = DataType::from_pyarrow_bound(to_type).context("convert to_type to pyarrow")?;
 
-    let batch = cherry_cast::cast_by_type(&batch, &from_type, &to_type, allow_cast_fail)
+    let batch = baselib::cast::cast_by_type(&batch, &from_type, &to_type, allow_cast_fail)
         .context("cast")?;
 
     Ok(batch.to_pyarrow(py).context("map result back to pyarrow")?)
@@ -148,7 +148,7 @@ fn cast_schema_by_type(
     let to_type = DataType::from_pyarrow_bound(to_type).context("convert to_type to pyarrow")?;
 
     let schema =
-        cherry_cast::cast_schema_by_type(&schema, &from_type, &to_type).context("cast")?;
+        baselib::cast::cast_schema_by_type(&schema, &from_type, &to_type).context("cast")?;
 
     Ok(schema
         .to_pyarrow(py)
@@ -159,7 +159,7 @@ fn cast_schema_by_type(
 fn hex_encode(batch: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<PyObject> {
     let batch = RecordBatch::from_pyarrow_bound(batch).context("convert batch from pyarrow")?;
 
-    let batch = cherry_cast::hex_encode::<false>(&batch).context("encode to hex")?;
+    let batch = baselib::cast::hex_encode::<false>(&batch).context("encode to hex")?;
 
     Ok(batch.to_pyarrow(py).context("map result back to pyarrow")?)
 }
@@ -168,7 +168,7 @@ fn hex_encode(batch: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<PyObject> {
 fn base58_encode(batch: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<PyObject> {
     let batch = RecordBatch::from_pyarrow_bound(batch).context("convert batch from pyarrow")?;
 
-    let batch = cherry_cast::base58_encode(&batch).context("encode to base58")?;
+    let batch = baselib::cast::base58_encode(&batch).context("encode to base58")?;
 
     Ok(batch.to_pyarrow(py).context("map result back to pyarrow")?)
 }
@@ -177,7 +177,7 @@ fn base58_encode(batch: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<PyObject>
 fn prefix_hex_encode(batch: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<PyObject> {
     let batch = RecordBatch::from_pyarrow_bound(batch).context("convert batch from pyarrow")?;
 
-    let batch = cherry_cast::hex_encode::<true>(&batch).context("encode to prefix hex")?;
+    let batch = baselib::cast::hex_encode::<true>(&batch).context("encode to prefix hex")?;
 
     Ok(batch.to_pyarrow(py).context("map result back to pyarrow")?)
 }
@@ -186,7 +186,7 @@ fn prefix_hex_encode(batch: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<PyObj
 fn u256_to_binary(batch: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<PyObject> {
     let batch = RecordBatch::from_pyarrow_bound(batch).context("convert batch from pyarrow")?;
 
-    let batch = cherry_cast::u256_to_binary(&batch).context("map u256 columns to binary")?;
+    let batch = baselib::cast::u256_to_binary(&batch).context("map u256 columns to binary")?;
 
     Ok(batch.to_pyarrow(py).context("map result back to pyarrow")?)
 }
@@ -208,7 +208,7 @@ fn base58_encode_column(col: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<PyOb
     }
     let col = BinaryArray::from(col);
 
-    let col = cherry_cast::base58_encode_column(&col);
+    let col = baselib::cast::base58_encode_column(&col);
 
     Ok(col
         .into_data()
@@ -242,14 +242,14 @@ fn hex_encode_column_impl<const PREFIXED: bool>(
 
     if col.data_type() == &DataType::Binary {
         let col = BinaryArray::from(col);
-        let col = cherry_cast::hex_encode_column::<PREFIXED, i32>(&col);
+        let col = baselib::cast::hex_encode_column::<PREFIXED, i32>(&col);
         Ok(col
             .into_data()
             .to_pyarrow(py)
             .context("map result back to pyarrow")?)
     } else if col.data_type() == &DataType::LargeBinary {
         let col = LargeBinaryArray::from(col);
-        let col = cherry_cast::hex_encode_column::<PREFIXED, i64>(&col);
+        let col = baselib::cast::hex_encode_column::<PREFIXED, i64>(&col);
         Ok(col
             .into_data()
             .to_pyarrow(py)
@@ -277,14 +277,14 @@ fn base58_decode_column(col: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<PyOb
 
     if col.data_type() == &DataType::Utf8 {
         let col = StringArray::from(col);
-        let col = cherry_cast::base58_decode_column(&col).context("base58 decode")?;
+        let col = baselib::cast::base58_decode_column(&col).context("base58 decode")?;
         Ok(col
             .into_data()
             .to_pyarrow(py)
             .context("map result back to pyarrow")?)
     } else if col.data_type() == &DataType::LargeUtf8 {
         let col = LargeStringArray::from(col);
-        let col = cherry_cast::base58_decode_column(&col).context("base58 decode")?;
+        let col = baselib::cast::base58_decode_column(&col).context("base58 decode")?;
         Ok(col
             .into_data()
             .to_pyarrow(py)
@@ -324,14 +324,14 @@ fn hex_decode_column_impl<const PREFIXED: bool>(
 
     if col.data_type() == &DataType::Utf8 {
         let col = StringArray::from(col);
-        let col = cherry_cast::hex_decode_column::<PREFIXED, i32>(&col).context("hex decode")?;
+        let col = baselib::cast::hex_decode_column::<PREFIXED, i32>(&col).context("hex decode")?;
         Ok(col
             .into_data()
             .to_pyarrow(py)
             .context("map result back to pyarrow")?)
     } else if col.data_type() == &DataType::LargeUtf8 {
         let col = LargeStringArray::from(col);
-        let col = cherry_cast::hex_decode_column::<PREFIXED, i64>(&col).context("hex decode")?;
+        let col = baselib::cast::hex_decode_column::<PREFIXED, i64>(&col).context("hex decode")?;
         Ok(col
             .into_data()
             .to_pyarrow(py)
@@ -362,7 +362,7 @@ fn u256_column_from_binary(col: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<P
     }
     let col = BinaryArray::from(col);
 
-    let col = cherry_cast::u256_column_from_binary(&col).context("u256 from binary")?;
+    let col = baselib::cast::u256_column_from_binary(&col).context("u256 from binary")?;
 
     Ok(col
         .into_data()
@@ -391,7 +391,7 @@ fn u256_column_to_binary(col: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<PyO
     }
     let col = Decimal256Array::from(col);
 
-    let col = cherry_cast::u256_column_to_binary(&col).context("u256 to binary")?;
+    let col = baselib::cast::u256_column_to_binary(&col).context("u256 to binary")?;
 
     Ok(col
         .into_data()
@@ -409,7 +409,7 @@ fn svm_decode_instructions(
     let batch = RecordBatch::from_pyarrow_bound(batch).context("convert batch from pyarrow")?;
 
     let instruction_signature = signature.extract::<InstructionSignature>()?;
-    let batch = cherry_svm_decode::decode_instructions_batch(
+    let batch = baselib::svm_decode::decode_instructions_batch(
         instruction_signature,
         &batch,
         allow_decode_fail,
@@ -430,7 +430,7 @@ fn svm_decode_logs(
 
     let log_signature = signature.extract::<LogSignature>()?;
 
-    let batch = cherry_svm_decode::decode_logs_batch(log_signature, &batch, allow_decode_fail)
+    let batch = baselib::svm_decode::decode_logs_batch(log_signature, &batch, allow_decode_fail)
         .context("decode log batch")?;
 
     Ok(batch.to_pyarrow(py).context("map result back to pyarrow")?)
@@ -442,7 +442,7 @@ fn instruction_signature_to_arrow_schema(
     py: Python<'_>,
 ) -> PyResult<PyObject> {
     let signature = signature.extract::<InstructionSignature>()?;
-    let schema = cherry_svm_decode::instruction_signature_to_arrow_schema(&signature)
+    let schema = baselib::svm_decode::instruction_signature_to_arrow_schema(&signature)
         .context("signature to schema")?;
 
     Ok(schema
@@ -472,7 +472,7 @@ fn evm_decode_call_inputs(
     }
     let col = BinaryArray::from(col);
 
-    let batch = cherry_evm_decode::decode_call_inputs(signature, &col, allow_decode_fail)
+    let batch = baselib::evm_decode::decode_call_inputs(signature, &col, allow_decode_fail)
         .context("decode cal inputs")?;
 
     Ok(batch.to_pyarrow(py).context("map result back to pyarrow")?)
@@ -500,7 +500,7 @@ fn evm_decode_call_outputs(
     }
     let col = BinaryArray::from(col);
 
-    let batch = cherry_evm_decode::decode_call_outputs(signature, &col, allow_decode_fail)
+    let batch = baselib::evm_decode::decode_call_outputs(signature, &col, allow_decode_fail)
         .context("decode cal outputs")?;
 
     Ok(batch.to_pyarrow(py).context("map result back to pyarrow")?)
@@ -515,7 +515,7 @@ fn evm_decode_events(
 ) -> PyResult<PyObject> {
     let batch = RecordBatch::from_pyarrow_bound(batch).context("convert batch from pyarrow")?;
 
-    let batch = cherry_evm_decode::decode_events(signature, &batch, allow_decode_fail)
+    let batch = baselib::evm_decode::decode_events(signature, &batch, allow_decode_fail)
         .context("decode events")?;
 
     Ok(batch.to_pyarrow(py).context("map result back to pyarrow")?)
@@ -523,7 +523,7 @@ fn evm_decode_events(
 
 #[pyfunction]
 fn evm_event_signature_to_arrow_schema(signature: &str, py: Python<'_>) -> PyResult<PyObject> {
-    let schema = cherry_evm_decode::event_signature_to_arrow_schema(signature)
+    let schema = baselib::evm_decode::event_signature_to_arrow_schema(signature)
         .context("signature to schema")?;
 
     Ok(schema
@@ -537,7 +537,7 @@ fn evm_function_signature_to_arrow_schemas(
     py: Python<'_>,
 ) -> PyResult<(PyObject, PyObject)> {
     let (input_schema, output_schema) =
-        cherry_evm_decode::function_signature_to_arrow_schemas(signature)
+        baselib::evm_decode::function_signature_to_arrow_schemas(signature)
             .context("signature to schemas")?;
 
     let input_schema = input_schema
@@ -563,7 +563,7 @@ fn evm_validate_block_data(
     let logs = RecordBatch::from_pyarrow_bound(logs).context("convert logs from pyarrow")?;
     let traces = RecordBatch::from_pyarrow_bound(traces).context("convert traces from pyarrow")?;
 
-    Ok(cherry_evm_validate::validate_block_data(
+    Ok(baselib::evm_validate::validate_block_data(
         &blocks,
         &transactions,
         &logs,
@@ -573,7 +573,7 @@ fn evm_validate_block_data(
 
 #[pyfunction]
 fn evm_signature_to_topic0(signature: &str) -> PyResult<String> {
-    let topic0 = cherry_evm_decode::signature_to_topic0(signature)?;
+    let topic0 = baselib::evm_decode::signature_to_topic0(signature)?;
 
     Ok(format!("0x{}", faster_hex::hex_string(topic0.as_slice())))
 }
@@ -601,9 +601,9 @@ fn get_token_metadata(
     selector: &Bound<'_, PyAny>,
     py: Python<'_>,
 ) -> PyResult<PyObject> {
-    let selector = selector.extract::<cherry_rpc_call::TokenMetadataSelector>()?;
+    let selector = selector.extract::<baselib::rpc_call::TokenMetadataSelector>()?;
     let token_metadata = TOKIO_RUNTIME.block_on(async {
-        cherry_rpc_call::get_token_metadata(rpc_url, addresses, &selector).await
+        baselib::rpc_call::get_token_metadata(rpc_url, addresses, &selector).await
     })?;
     let py_list = PyList::empty(py);
 
@@ -657,16 +657,16 @@ fn get_token_metadata_as_table(
     py: Python<'_>,
 ) -> PyResult<PyObject> {
     let token_metadata = TOKIO_RUNTIME.block_on(async {
-        cherry_rpc_call::get_token_metadata(
+        baselib::rpc_call::get_token_metadata(
             rpc_url,
             addresses,
-            &selector.extract::<cherry_rpc_call::TokenMetadataSelector>()?,
+            &selector.extract::<baselib::rpc_call::TokenMetadataSelector>()?,
         )
         .await
     })?;
-    let batch = cherry_rpc_call::token_metadata_to_table(
+    let batch = baselib::rpc_call::token_metadata_to_table(
         token_metadata,
-        &selector.extract::<cherry_rpc_call::TokenMetadataSelector>()?,
+        &selector.extract::<baselib::rpc_call::TokenMetadataSelector>()?,
     )?;
 
     Ok(batch.to_pyarrow(py).context("map result back to pyarrow")?)
@@ -679,7 +679,7 @@ fn get_pools_token0_token1(
     py: Python<'_>,
 ) -> PyResult<PyObject> {
     let pool_tokens = TOKIO_RUNTIME.block_on(async {
-        cherry_rpc_call::get_pools_token0_token1(rpc_url, pool_addresses).await
+        baselib::rpc_call::get_pools_token0_token1(rpc_url, pool_addresses).await
     })?;
     let py_list = PyList::empty(py);
 
@@ -714,9 +714,9 @@ fn get_pools_token0_token1_as_table(
     py: Python<'_>,
 ) -> PyResult<PyObject> {
     let pool_tokens = TOKIO_RUNTIME.block_on(async {
-        cherry_rpc_call::get_pools_token0_token1(rpc_url, pool_addresses).await
+        baselib::rpc_call::get_pools_token0_token1(rpc_url, pool_addresses).await
     })?;
-    let batch = cherry_rpc_call::v2_pool_tokens_to_table(pool_tokens)?;
+    let batch = baselib::rpc_call::v2_pool_tokens_to_table(pool_tokens)?;
 
     Ok(batch.to_pyarrow(py).context("map result back to pyarrow")?)
 }
